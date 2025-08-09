@@ -7,10 +7,12 @@ use axum::{
     routing::get,
 };
 use serde_json::{Value, json};
+use std::io::Cursor;
 use tower_http::{self, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod archive;
+mod fits;
 
 struct AppError(anyhow::Error);
 
@@ -41,10 +43,20 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
     let auth_header: Option<&str> = headers
         .get("Authorization")
         .map(|v| v.to_str().unwrap_or_default());
-    let archive_response = archive::get_frame_record(frame_id, auth_header).await?;
-    Ok(Json(
-        json!({"url": archive_response.url, "filter": archive_response.filter}),
-    ))
+    let frame_record = archive::get_frame_record(frame_id, auth_header).await?;
+    tracing::debug!("Starting download of frame {frame_id}");
+    let frame_bytes = reqwest::get(frame_record.url).await?.bytes().await?;
+    tracing::debug!("Done downloading frame {frame_id}");
+    let cursor = Cursor::new(frame_bytes.to_vec());
+    let image_data = fits::read_fits(cursor).unwrap();
+    tracing::debug!(
+        "Image width: {}, height: {}, pixels: {}",
+        image_data.width,
+        image_data.height,
+        image_data.pixels.len()
+    );
+    let frame_size = frame_bytes.len();
+    Ok(Json(json!({"frame_size_mb": frame_size / (1024 * 1024)})))
 }
 
 #[tokio::main]
