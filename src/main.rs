@@ -6,6 +6,8 @@ use axum::{
     response::{IntoResponse, Json, Response},
     routing::get,
 };
+use image::DynamicImage;
+use image::ImageBuffer;
 use serde_json::{Value, json};
 use std::io::Cursor;
 use tower_http::{self, trace::TraceLayer};
@@ -13,6 +15,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod archive;
 mod fits;
+mod scaling;
 
 struct AppError(anyhow::Error);
 
@@ -55,6 +58,12 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
         image_data.height,
         image_data.pixels.len()
     );
+    let scaled_image = scaling::scaled_image(image_data.pixels);
+    let mut image = DynamicImage::ImageLuma8(
+        ImageBuffer::from_vec(image_data.width, image_data.height, scaled_image).unwrap(),
+    );
+    image = image.resize(300, 300, image::imageops::FilterType::Triangle);
+    image.save("output.jpeg").unwrap();
     let frame_size = frame_bytes.len();
     Ok(Json(json!({"frame_size_mb": frame_size / (1024 * 1024)})))
 }
