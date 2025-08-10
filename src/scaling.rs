@@ -2,6 +2,7 @@ use ndarray::{Array, Array2, Axis, stack};
 use ndarray_linalg::LeastSquaresSvd;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct ZscaleBounds {
     min: f32,
     max: f32,
@@ -29,6 +30,7 @@ fn calc_zscale(sample_data: &[f32]) -> ZscaleBounds {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct LeastSquareResult {
     slope: f32,
     intercept: f32,
@@ -106,4 +108,29 @@ pub fn scaled_image(pixels: Vec<f32>) -> Vec<u8> {
     let median = sampled_data[sampled_data.len() / 2];
     let min_max = calc_zscale(&sampled_data);
     linear_scale(pixels, median, min_max.max)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::DynamicImage;
+    use image::ImageBuffer;
+    use rand::prelude::*;
+    use std::time::Instant;
+
+    #[test]
+    fn test_scaled_image() {
+        // Generate random distribution of 5760000 pixels
+        let mut rng = rand::rng();
+        let pixels: Vec<f32> = (0..5760000).map(|_| rng.random::<f32>()).collect();
+        let now = Instant::now();
+        let scaled = scaled_image(pixels);
+        let elapsed = now.elapsed();
+        tracing::debug!("Scaling elapsed time: {:?}", elapsed);
+        assert_eq!(scaled.len(), 5760000);
+        let mut image =
+            DynamicImage::ImageLuma8(ImageBuffer::from_vec(2400, 2400, scaled).unwrap());
+        image = image.resize(300, 300, image::imageops::FilterType::Triangle);
+        image.save("tests/output/random.jpeg").unwrap();
+    }
 }
