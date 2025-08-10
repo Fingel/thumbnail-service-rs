@@ -13,6 +13,9 @@ pub fn read_fits(reader: Cursor<Vec<u8>>) -> Result<FitsImageData, Error> {
 
     while let Some(Ok(hdu)) = hdu_list.next() {
         match hdu {
+            HDU::Primary(_) => {
+                // Handle primary HDU or other HDU types as needed
+            }
             HDU::XBinaryTable(hdu) => {
                 let width = hdu
                     .get_header()
