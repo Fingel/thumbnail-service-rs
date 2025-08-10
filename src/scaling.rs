@@ -27,13 +27,13 @@ struct ZscaleBounds {
     max: f32,
 }
 
-fn calc_zscale(sample_data: &[f32]) -> ZscaleBounds {
+fn calc_zscale(sample_data: Vec<f32>) -> ZscaleBounds {
     let contrast = 0.1; // Hardcoded for now
 
     let nsamples = sample_data.len();
-    let lsq_fit = least_squares_line_fit(sample_data);
     let zmin = sample_data[0];
     let zmax = sample_data[nsamples - 1];
+    let lsq_fit = least_squares_line_fit(sample_data);
     let mut slope = lsq_fit.slope;
 
     if contrast > 0.0 {
@@ -58,12 +58,11 @@ struct LeastSquareResult {
     rms: f32,
 }
 
-fn least_squares_line_fit(sample_data: &[f32]) -> LeastSquareResult {
+fn least_squares_line_fit(sample_data: Vec<f32>) -> LeastSquareResult {
     let num_samples = sample_data.len();
     let x: Vec<f32> = (0..num_samples).map(|i| i as f32).collect();
-
     let a: Array2<f32> = stack![Axis(1), x, vec![1.0; num_samples]];
-    let y = Array::from(sample_data.to_vec());
+    let y = Array::from(sample_data);
     let result = a.least_squares(&y).unwrap();
     let mean_residual = result
         .residual_sum_of_squares
@@ -127,7 +126,7 @@ fn extract_samples(pixels: &Vec<f32>) -> Vec<f32> {
 pub fn scaled_image(pixels: Vec<f32>) -> Vec<u8> {
     let sampled_data = extract_samples(&pixels);
     let median = sampled_data[sampled_data.len() / 2];
-    let min_max = calc_zscale(&sampled_data);
+    let min_max = calc_zscale(sampled_data);
     linear_scale(pixels, median, min_max.max)
 }
 
