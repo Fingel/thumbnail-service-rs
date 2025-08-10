@@ -5,11 +5,13 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.98"
+aws-config = "1.8.4"
+aws-sdk-s3 = "1.101.0"
 axum = "0.8.4"
 fitsrs = "0.3.4"
 image = "0.25.6"
 ndarray = "0.16.1"
-ndarray-linalg = { version = "0.17.0", features = ["openblas-static"] }
+ndarray-linalg = { version = "0.17.0", features = ["openblas-system"] }
 reqwest = { version = "0.12.22", features = ["json"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"

@@ -16,6 +16,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod archive;
 mod fits;
+mod s3;
 mod scaling;
 
 struct AppError(anyhow::Error);
@@ -44,26 +45,36 @@ async fn hello() -> String {
 }
 
 async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json<Value>, AppError> {
+    let s3_service = s3::S3Service::new().await;
     let auth_header: Option<&str> = headers
         .get("Authorization")
         .map(|v| v.to_str().unwrap_or_default());
     let frame_record = archive::get_frame_record(frame_id, auth_header).await?;
-    tracing::debug!("Starting download of frame {frame_id}");
-    let frame_bytes = reqwest::get(frame_record.url).await?.bytes().await?;
-    tracing::debug!("Done downloading frame {frame_id}");
-    let cursor = Cursor::new(frame_bytes.to_vec());
-    let image_data = fits::read_fits(cursor).unwrap();
-    let now = Instant::now();
-    let scaled_image = scaling::scaled_image(image_data.pixels);
-    let elapsed = now.elapsed();
-    tracing::debug!("Scaling took {:?}", elapsed);
-    let mut image = DynamicImage::ImageLuma8(
-        ImageBuffer::from_vec(image_data.width, image_data.height, scaled_image).unwrap(),
-    );
-    image = image.resize(300, 300, image::imageops::FilterType::Triangle);
-    image.save("output.jpeg").unwrap();
-    let frame_size = frame_bytes.len();
-    Ok(Json(json!({"frame_size_mb": frame_size / (1024 * 1024)})))
+    let key = format!("frames/{frame_id}.jpeg");
+    if !s3_service.file_exists(&key).await {
+        tracing::debug!("Starting download of frame {frame_id}");
+        let frame_bytes = reqwest::get(frame_record.url).await?.bytes().await?;
+        tracing::debug!(
+            "Done downloading frame {frame_id} size: {}mb",
+            frame_bytes.len() / (1024 * 1024)
+        );
+        let cursor = Cursor::new(frame_bytes.to_vec());
+        let image_data = fits::read_fits(cursor).unwrap();
+        let now = Instant::now();
+        let scaled_image = scaling::scaled_image(image_data.pixels);
+        let elapsed = now.elapsed();
+        tracing::debug!("Scaling took {:?}", elapsed);
+        let mut image = DynamicImage::ImageLuma8(
+            ImageBuffer::from_vec(image_data.width, image_data.height, scaled_image).unwrap(),
+        );
+        image = image.resize(300, 300, image::imageops::FilterType::Triangle);
+        let mut image_buf = Vec::new();
+        let mut writer = Cursor::new(&mut image_buf);
+        image.write_to(&mut writer, image::ImageFormat::Jpeg)?;
+        s3_service.upload_file(&image_buf, &key).await?;
+    }
+    let url = s3_service.presigned_url(&key).await?;
+    Ok(Json(json!({"url": url})))
 }
 
 #[tokio::main]
