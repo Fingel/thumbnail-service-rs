@@ -94,7 +94,7 @@ fn least_squares_line_fit(sample_data: Vec<f32>) -> LeastSquareResult {
     }
 }
 
-fn linear_scale(mut image_data: Vec<f32>, zmin: f32, zmax: f32) -> Vec<u8> {
+fn linear_scale(image_data: Vec<f32>, zmin: f32, zmax: f32) -> Vec<u8> {
     let mut max = zmax;
     let mut min = zmin;
     if zmax == zmin {
@@ -103,15 +103,15 @@ fn linear_scale(mut image_data: Vec<f32>, zmin: f32, zmax: f32) -> Vec<u8> {
     }
     let scale = 255.0 / (max - min);
     let adjust = scale * min;
-    for pixel in &mut image_data {
-        *pixel = pixel.clamp(min, max);
-        *pixel *= scale;
-        *pixel -= adjust;
-        *pixel = pixel.round();
-    }
     image_data
         .into_iter()
-        .map(|e| GAMMA_LOOKUP[e as usize])
+        .map(|mut pixel| {
+            pixel = pixel.clamp(min, max);
+            pixel *= scale;
+            pixel -= adjust;
+            pixel = pixel.round();
+            GAMMA_LOOKUP[pixel as usize]
+        })
         .collect()
 }
 
@@ -120,7 +120,7 @@ fn extract_samples(pixels: &Vec<f32>) -> Vec<f32> {
     let num_samples = 2000;
     let steps = pixels.len() / num_samples;
     let mut samples: Vec<f32> = pixels.iter().step_by(steps).skip(1).cloned().collect();
-    samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    samples.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     samples
 }
 
