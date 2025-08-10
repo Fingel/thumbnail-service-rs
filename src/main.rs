@@ -10,6 +10,7 @@ use image::DynamicImage;
 use image::ImageBuffer;
 use serde_json::{Value, json};
 use std::io::Cursor;
+use std::time::Instant;
 use tower_http::{self, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -52,13 +53,10 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
     tracing::debug!("Done downloading frame {frame_id}");
     let cursor = Cursor::new(frame_bytes.to_vec());
     let image_data = fits::read_fits(cursor).unwrap();
-    tracing::debug!(
-        "Image width: {}, height: {}, pixels: {}",
-        image_data.width,
-        image_data.height,
-        image_data.pixels.len()
-    );
+    let now = Instant::now();
     let scaled_image = scaling::scaled_image(image_data.pixels);
+    let elapsed = now.elapsed();
+    tracing::debug!("Scaling took {:?}", elapsed);
     let mut image = DynamicImage::ImageLuma8(
         ImageBuffer::from_vec(image_data.width, image_data.height, scaled_image).unwrap(),
     );
