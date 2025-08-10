@@ -20,6 +20,19 @@ static GAMMA_LOOKUP: [u8; 256] = [
     254, 255, 255, 255,
 ];
 
+#[allow(dead_code)]
+fn gamma_adjust_table() -> [u8; 256] {
+    // If powf ever becomes constified, we can use this as a const function
+    // instead of hardcoding the GAMMA_LOOKUP table like we do now.
+    let mut table = [0; 256];
+    let mut i = 0;
+    while i < 256 {
+        table[i] = (256.0 * (i as f32 / 255.0).powf(1.0 / 2.5)) as u8;
+        i += 1;
+    }
+    table
+}
+
 #[derive(Debug)]
 #[allow(dead_code)]
 struct ZscaleBounds {
@@ -79,18 +92,6 @@ fn least_squares_line_fit(sample_data: Vec<f32>) -> LeastSquareResult {
         num_samples,
         rms,
     }
-}
-
-fn gamma_adjust_table() -> [u8; 256] {
-    // If powf ever becomes constified, we can use this as a const function
-    // instead of hardcoding the GAMMA_LOOKUP table like we do now.
-    let mut table = [0; 256];
-    let mut i = 0;
-    while i < 256 {
-        table[i] = (256.0 * (i as f32 / 255.0).powf(1.0 / 2.5)) as u8;
-        i += 1;
-    }
-    table
 }
 
 fn linear_scale(mut image_data: Vec<f32>, zmin: f32, zmax: f32) -> Vec<u8> {
