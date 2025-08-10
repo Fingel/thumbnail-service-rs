@@ -116,7 +116,7 @@ fn linear_scale(image_data: Vec<f32>, zmin: f32, zmax: f32) -> Vec<u8> {
 }
 
 /// Return 2000 samples from the image data, sorted
-fn extract_samples(pixels: &Vec<f32>) -> Vec<f32> {
+fn extract_samples(pixels: &[f32]) -> Vec<f32> {
     let num_samples = 2000;
     let steps = pixels.len() / num_samples;
     let mut samples: Vec<f32> = pixels.iter().step_by(steps).skip(1).cloned().collect();
