@@ -9,8 +9,8 @@ use axum::{
 use image::DynamicImage;
 use image::ImageBuffer;
 use serde_json::{Value, json};
-use std::io::Cursor;
 use std::time::Instant;
+use std::{env::var, io::Cursor};
 use tower_http::{self, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -51,7 +51,7 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
         .map(|v| v.to_str().unwrap_or_default());
     let frame_record = archive::get_frame_record(frame_id, auth_header).await?;
     let key = format!("frames/{frame_id}.jpeg");
-    if !s3_service.file_exists(&key).await {
+    if cache_disabled() || !s3_service.file_exists(&key).await {
         tracing::debug!("Starting download of frame {frame_id}");
         let frame_bytes = reqwest::get(frame_record.url).await?.bytes().await?;
         tracing::debug!(
@@ -75,6 +75,13 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
     }
     let url = s3_service.presigned_url(&key).await?;
     Ok(Json(json!({"url": url})))
+}
+
+fn cache_disabled() -> bool {
+    match var("USE_S3_CACHE") {
+        Ok(value) => value == "false",
+        Err(_) => false,
+    }
 }
 
 #[tokio::main]
