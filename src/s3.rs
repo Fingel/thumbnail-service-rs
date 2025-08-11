@@ -51,6 +51,7 @@ impl S3Service {
         Ok(presigned_request.uri().to_string())
     }
 
+    #[allow(dead_code)]
     pub async fn file_exists(&self, key: &str) -> bool {
         self.client
             .head_object()

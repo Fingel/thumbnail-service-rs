@@ -51,33 +51,38 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
         .map(|v| v.to_str().unwrap_or_default());
     let frame_record = archive::get_frame_record(frame_id, auth_header).await?;
     let key = format!("frames/{frame_id}.jpeg");
-    if cache_disabled() || !s3_service.file_exists(&key).await {
-        tracing::debug!("Starting download of frame {frame_id}");
-        let frame_bytes = reqwest::get(frame_record.url).await?.bytes().await?;
-        tracing::debug!(
-            "Done downloading frame {frame_id} size: {}mb",
-            frame_bytes.len() / (1024 * 1024)
-        );
-        tracing::debug!("Starting open fits");
-        let image_data = fits::read_fits_fitsio(&frame_bytes[..])?;
-        tracing::debug!("Done open fits");
-        let now = Instant::now();
-        let scaled_image = scaling::scaled_image(image_data.pixels);
-        let elapsed = now.elapsed();
-        tracing::debug!("Scaling took {:?}", elapsed);
-        let mut image = DynamicImage::ImageLuma8(
-            ImageBuffer::from_vec(image_data.width, image_data.height, scaled_image).unwrap(),
-        );
-        image = image.resize(300, 300, image::imageops::FilterType::Triangle);
-        let mut image_buf = Vec::new();
-        let mut writer = Cursor::new(&mut image_buf);
-        image.write_to(&mut writer, image::ImageFormat::Jpeg)?;
-        s3_service.upload_file(&image_buf, &key).await?;
-    }
+    // if cache_disabled() || !s3_service.file_exists(&key).await {
+    tracing::debug!("Starting download of frame {frame_id}");
+    let now = Instant::now();
+    let frame_bytes = reqwest::get(frame_record.url).await?.bytes().await?;
+    let dl_elapsed = now.elapsed().as_millis();
+    let dl_size = frame_bytes.len() / (1024 * 1024);
+    tracing::debug!("Done downloading frame {frame_id} size: {dl_size}mb",);
+    tracing::debug!("Starting open fits");
+    let now = Instant::now();
+    let image_data = fits::read_fits_fitsio(&frame_bytes[..])?;
+    let open_elapsed = now.elapsed().as_millis();
+    tracing::debug!("Done open fits");
+    let now = Instant::now();
+    let scaled_image = scaling::scaled_image(image_data.pixels);
+    let scaling_elapsed = now.elapsed().as_millis();
+    tracing::debug!("Scaling took {:?}ms", scaling_elapsed);
+    let mut image = DynamicImage::ImageLuma8(
+        ImageBuffer::from_vec(image_data.width, image_data.height, scaled_image).unwrap(),
+    );
+    image = image.resize(300, 300, image::imageops::FilterType::Triangle);
+    let mut image_buf = Vec::new();
+    let mut writer = Cursor::new(&mut image_buf);
+    image.write_to(&mut writer, image::ImageFormat::Jpeg)?;
+    s3_service.upload_file(&image_buf, &key).await?;
+    // }
     let url = s3_service.presigned_url(&key).await?;
-    Ok(Json(json!({"url": url})))
+    Ok(Json(
+        json!({"url": url, "download_s3_ms": dl_elapsed, "download_size_mb": dl_size, "open_fits_ms": open_elapsed, "scaling_ms": scaling_elapsed}),
+    ))
 }
 
+#[allow(dead_code)]
 fn cache_disabled() -> bool {
     match var("USE_S3_CACHE") {
         Ok(value) => value == "false",
