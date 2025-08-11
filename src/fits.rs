@@ -27,19 +27,14 @@ pub fn read_fits(reader: Cursor<&[u8]>) -> Result<FitsImageData, Error> {
                     .get_parsed::<i64>("ZNAXIS2")
                     .context("ZNAXIS2 header not found")?
                     .context("Failed to parse ZNAXIS2 as u32")? as u32;
-                let pixels: Vec<f32> = hdu_list
-                    .get_data(&hdu)
-                    .map(|m| match m {
-                        DataValue::Float {
-                            value,
-                            column: _,
-                            idx: _,
-                        } => value,
-                        _ => {
-                            unreachable!("Inconsistent data type")
-                        }
-                    })
-                    .collect();
+                let expected_size = width * height;
+                let mut pixels = Vec::with_capacity(expected_size as usize);
+                for data_value in hdu_list.get_data(&hdu) {
+                    if let DataValue::Float { value, .. } = data_value {
+                        pixels.push(value);
+                    }
+                }
+
                 return Ok(FitsImageData {
                     width,
                     height,
