@@ -1,6 +1,8 @@
-use anyhow::{Context, Error, Result};
-use fitsrs::{DataValue, Fits, HDU};
-use std::io::Cursor;
+use anyhow::{Error, Result};
+use fitsio::FitsFile;
+use memfd::MemfdOptions;
+use ndarray::ArrayD;
+use std::{io::Write, os::fd::AsRawFd};
 
 pub struct FitsImageData {
     pub width: u32,
@@ -8,60 +10,48 @@ pub struct FitsImageData {
     pub pixels: Vec<f32>,
 }
 
-pub fn read_fits(reader: Cursor<&[u8]>) -> Result<FitsImageData, Error> {
-    let mut hdu_list = Fits::from_reader(reader);
+pub fn read_fits_fitsio(image_data: &[u8]) -> Result<FitsImageData, Error> {
+    let opts = MemfdOptions::default().allow_sealing(false);
+    let mfd = opts.create("image-data")?;
+    mfd.as_file().write_all(image_data)?;
 
-    while let Some(Ok(hdu)) = hdu_list.next() {
-        match hdu {
-            HDU::Primary(_) => {
-                // Handle primary HDU or other HDU types as needed
-            }
-            HDU::XBinaryTable(hdu) => {
-                let width = hdu
-                    .get_header()
-                    .get_parsed::<i64>("ZNAXIS1")
-                    .context("ZNAXIS1 header not found")?
-                    .context("Failed to parse ZNAXIS1 as u32")? as u32;
-                let height = hdu
-                    .get_header()
-                    .get_parsed::<i64>("ZNAXIS2")
-                    .context("ZNAXIS2 header not found")?
-                    .context("Failed to parse ZNAXIS2 as u32")? as u32;
-                let expected_size = width * height;
-                let mut pixels = Vec::with_capacity(expected_size as usize);
-                for data_value in hdu_list.get_data(&hdu) {
-                    if let DataValue::Float { value, .. } = data_value {
-                        pixels.push(value);
-                    }
-                }
+    let path = format!("/proc/self/fd/{}", mfd.as_file().as_raw_fd());
+    let mut fits_f = FitsFile::open(path).expect("could not open file descriptor");
 
-                return Ok(FitsImageData {
-                    width,
-                    height,
-                    pixels,
-                });
-            }
-            _ => {}
-        }
-    }
-    Err(Error::msg("Could not find image HDU"))
+    let fits_data: ArrayD<f32> = {
+        let hdus: Vec<_> = fits_f.iter().collect();
+        hdus.iter()
+            .find_map(|hdu| hdu.read_image(&mut fits_f).ok())
+            .expect("Could not read image data from any HDU")
+    };
+    let dim = fits_data.dim();
+    let height = dim[0] as u32;
+    let width = dim[1] as u32;
+    let pixels = fits_data.into_raw_vec_and_offset().0;
+    Ok(FitsImageData {
+        width,
+        height,
+        pixels,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs::File;
-    use std::io::Cursor;
     use std::io::Read;
+    use std::time::Instant;
     use test_log::test;
 
     #[test]
-    fn test_read_compressed_fits() {
+    fn test_read_compressed_fits_cfitsio() {
         let mut file = File::open("tests/data/test.fits.fz").unwrap();
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
-        let cursor = Cursor::new(&buffer[..]);
-        let image_data = read_fits(cursor).unwrap();
+        let now = Instant::now();
+        let image_data = read_fits_fitsio(&buffer[..]).unwrap();
+        let elapsed = now.elapsed();
+        tracing::debug!("CFITSIO read time: {:?}", elapsed);
         assert!(image_data.width * image_data.height == image_data.pixels.len() as u32);
         assert!(image_data.pixels.len() == 5760000);
     }

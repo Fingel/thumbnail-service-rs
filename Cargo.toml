@@ -1,6 +1,6 @@
 [package]
 name = "thumbnail-service-rs"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 
 [dependencies]
@@ -8,8 +8,9 @@ anyhow = "1.0.98"
 aws-config = "1.8.4"
 aws-sdk-s3 = "1.101.0"
 axum = "0.8.4"
-fitsrs = "0.3.4"
+fitsio = { version = "0.21.7", features = ["array", "ndarray"] }
 image = { version = "0.25.6", default-features = false, features = ["jpeg", "rayon"] }
+memfd = "0.6.4"
 ndarray = "0.16.1"
 ndarray-linalg = { version = "0.17.0", features = ["openblas-static"] }
 reqwest = { version = "0.12.22", features = ["json"] }

@@ -59,8 +59,7 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
             frame_bytes.len() / (1024 * 1024)
         );
         tracing::debug!("Starting open fits");
-        let cursor = Cursor::new(&frame_bytes[..]);
-        let image_data = fits::read_fits(cursor).unwrap();
+        let image_data = fits::read_fits_fitsio(&frame_bytes[..])?;
         tracing::debug!("Done open fits");
         let now = Instant::now();
         let scaled_image = scaling::scaled_image(image_data.pixels);
