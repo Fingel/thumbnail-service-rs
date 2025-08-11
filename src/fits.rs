@@ -8,7 +8,7 @@ pub struct FitsImageData {
     pub pixels: Vec<f32>,
 }
 
-pub fn read_fits(reader: Cursor<Vec<u8>>) -> Result<FitsImageData, Error> {
+pub fn read_fits(reader: Cursor<&[u8]>) -> Result<FitsImageData, Error> {
     let mut hdu_list = Fits::from_reader(reader);
 
     while let Some(Ok(hdu)) = hdu_list.next() {
@@ -65,7 +65,7 @@ mod tests {
         let mut file = File::open("tests/data/test.fits.fz").unwrap();
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
-        let cursor = Cursor::new(buffer);
+        let cursor = Cursor::new(&buffer[..]);
         let image_data = read_fits(cursor).unwrap();
         assert!(image_data.width * image_data.height == image_data.pixels.len() as u32);
         assert!(image_data.pixels.len() == 5760000);
