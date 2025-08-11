@@ -5,6 +5,6 @@ COPY . .
 RUN cargo install --path .
 
 FROM debian:trixie-slim
-RUN apt update && apt install -y gfortran
+RUN apt update && apt install -y gfortran ca-certificates
 COPY --from=builder /usr/local/cargo/bin/thumbnail-service-rs /usr/local/bin/thumbnail-service-rs
 CMD [ "thumbnail-service-rs" ]

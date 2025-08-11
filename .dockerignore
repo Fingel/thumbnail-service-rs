@@ -3,3 +3,6 @@ Dockerfile
 .dockerignore
 .git
 .gitignore
+containerreg.txt
+rundocker.sh
+testdls.sh
