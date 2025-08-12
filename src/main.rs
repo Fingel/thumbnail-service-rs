@@ -17,6 +17,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod archive;
 mod fits;
+mod multipart;
 mod s3;
 mod scaling;
 
@@ -62,7 +63,7 @@ async fn thumbnail(
     // if cache_disabled() || !s3_service.file_exists(&key).await {
     tracing::debug!("Starting download of frame {frame_id}");
     let now = Instant::now();
-    let frame_bytes = reqwest::get(frame_record.url).await?.bytes().await?;
+    let frame_bytes = archive::download_frame_data(&frame_record.url).await?;
     let dl_elapsed = now.elapsed().as_millis();
     let dl_size = frame_bytes.len() / (1024 * 1024);
     tracing::debug!("Done downloading frame {frame_id} size: {dl_size}mb",);

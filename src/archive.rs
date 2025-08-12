@@ -1,8 +1,10 @@
 //! Interactions with the Archive API.
+use crate::multipart::MultipartDownloader;
 use anyhow::{Context, Result};
 use axum::http::HeaderMap;
 use serde::{Deserialize, Serialize};
 use std::env::var;
+use tracing::{debug, info};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ArchiveResponse {
@@ -32,4 +34,43 @@ pub async fn get_frame_record(
         .json::<ArchiveResponse>()
         .await
         .context("Failed to parse JSON response from Archive")
+}
+
+/// Download frame data using multipart downloader for large files
+pub async fn download_frame_data(url: &str) -> Result<Vec<u8>, anyhow::Error> {
+    debug!("Starting frame data download from URL: {}", url);
+    let downloader = MultipartDownloader::new();
+    match downloader.download(url).await {
+        Ok(data) => {
+            info!(
+                "Successfully downloaded frame data: {}MB",
+                data.len() / (1024 * 1024)
+            );
+            Ok(data)
+        }
+        Err(e) => {
+            debug!(
+                "Multipart download failed: {}, attempting fallback to simple reqwest",
+                e
+            );
+
+            // Fallback to simple reqwest download for S3 URLs that don't support multipart
+            info!("Falling back to single-connection download for S3 presigned URL");
+            let response = reqwest::get(url)
+                .await
+                .context("Failed to download with fallback reqwest method")?;
+
+            let bytes = response
+                .bytes()
+                .await
+                .context("Failed to read response bytes with fallback method")?;
+
+            info!(
+                "Fallback download successful: {}MB",
+                bytes.len() / (1024 * 1024)
+            );
+
+            Ok(bytes.to_vec())
+        }
+    }
 }
