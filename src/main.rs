@@ -70,7 +70,7 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
     let mut image = DynamicImage::ImageLuma8(
         ImageBuffer::from_vec(image_data.width, image_data.height, scaled_image).unwrap(),
     );
-    image = image.resize(300, 300, image::imageops::FilterType::Triangle);
+    image = image.resize(200, 200, image::imageops::FilterType::Triangle);
     let mut image_buf = Vec::new();
     let mut writer = Cursor::new(&mut image_buf);
     image.write_to(&mut writer, image::ImageFormat::Jpeg)?;
