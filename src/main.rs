@@ -60,7 +60,7 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
     tracing::debug!("Done downloading frame {frame_id} size: {dl_size}mb",);
     tracing::debug!("Starting open fits");
     let now = Instant::now();
-    let image_data = fits::read_fits_fitsio(&frame_bytes[..])?;
+    let image_data = fits::read_fits(&frame_bytes[..])?;
     let open_elapsed = now.elapsed().as_millis();
     tracing::debug!("Done open fits");
     let now = Instant::now();
