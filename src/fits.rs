@@ -10,17 +10,10 @@ pub struct FitsImageData {
 }
 
 pub fn read_fits(image_data: &[u8]) -> Result<FitsImageData, Error> {
-    let opts = MemfdOptions::default()
-        .allow_sealing(true)
-        .close_on_exec(true);
+    let opts = MemfdOptions::default().close_on_exec(true);
     let mfd = opts.create("image-data")?;
     mfd.as_file().set_len(image_data.len() as u64)?;
     mfd.as_file().write_all(image_data)?;
-    mfd.add_seals(&[
-        memfd::FileSeal::SealWrite,
-        memfd::FileSeal::SealShrink,
-        memfd::FileSeal::SealGrow,
-    ])?;
 
     let path = format!("/proc/self/fd/{}", mfd.as_file().as_raw_fd());
     let mut fits_f = FitsFile::open(path).expect("could not open file descriptor");
