@@ -96,19 +96,17 @@ impl MultipartDownloader {
             debug!("Server supports range requests (got 206 response)");
 
             // Try to get file size from content-range header
-            if let Some(content_range) = response.headers().get("content-range") {
-                if let Ok(range_str) = content_range.to_str() {
-                    // Content-Range: bytes 0-1023/total_size
-                    if let Some(total_size_str) = range_str.split('/').nth(1) {
-                        if let Ok(total_size) = total_size_str.parse::<usize>() {
-                            debug!(
-                                "File size from content-range: {}MB",
-                                total_size / (1024 * 1024)
-                            );
-                            return Ok(total_size);
-                        }
-                    }
-                }
+            if let Some(content_range) = response.headers().get("content-range")
+                && let Ok(range_str) = content_range.to_str()
+                // Content-Range: bytes 0-1023/total_size
+                && let Some(total_size_str) = range_str.split('/').nth(1)
+                && let Ok(total_size) = total_size_str.parse::<usize>()
+            {
+                debug!(
+                    "File size from content-range: {}MB",
+                    total_size / (1024 * 1024)
+                );
+                return Ok(total_size);
             }
         }
 

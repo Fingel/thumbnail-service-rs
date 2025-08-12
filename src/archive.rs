@@ -41,13 +41,7 @@ pub async fn download_frame_data(url: &str) -> Result<Vec<u8>, anyhow::Error> {
     debug!("Starting frame data download from URL: {}", url);
     let downloader = MultipartDownloader::new();
     match downloader.download(url).await {
-        Ok(data) => {
-            info!(
-                "Successfully downloaded frame data: {}MB",
-                data.len() / (1024 * 1024)
-            );
-            Ok(data)
-        }
+        Ok(data) => Ok(data),
         Err(e) => {
             debug!(
                 "Multipart download failed: {}, attempting fallback to simple reqwest",
