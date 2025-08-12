@@ -72,7 +72,7 @@ async fn thumbnail(
     let open_elapsed = now.elapsed().as_millis();
     tracing::debug!("Done open fits");
     let now = Instant::now();
-    let scaled_image = scaling::scaled_image(image_data.pixels);
+    let scaled_image = scaling::scaled_image(&image_data.pixels[..]);
     let scaling_elapsed = now.elapsed().as_millis();
     tracing::debug!("Scaling took {:?}ms", scaling_elapsed);
     let mut image = DynamicImage::ImageLuma8(

@@ -94,7 +94,7 @@ fn least_squares_line_fit(sample_data: &[f32]) -> LeastSquareResult {
     }
 }
 
-fn linear_scale(image_data: Vec<f32>, zmin: f32, zmax: f32) -> Vec<u8> {
+fn linear_scale(image_data: &[f32], zmin: f32, zmax: f32) -> Vec<u8> {
     let mut max = zmax;
     let mut min = zmin;
     if zmax == zmin {
@@ -104,8 +104,9 @@ fn linear_scale(image_data: Vec<f32>, zmin: f32, zmax: f32) -> Vec<u8> {
     let scale = 255.0 / (max - min);
     let adjust = scale * min;
     image_data
-        .into_iter()
-        .map(|mut pixel| {
+        .iter()
+        .map(|&pixel| {
+            let mut pixel = pixel;
             pixel = pixel.clamp(min, max);
             pixel *= scale;
             pixel -= adjust;
@@ -124,8 +125,8 @@ fn extract_samples(pixels: &[f32]) -> Vec<f32> {
     samples
 }
 
-pub fn scaled_image(pixels: Vec<f32>) -> Vec<u8> {
-    let sampled_data = extract_samples(&pixels);
+pub fn scaled_image(pixels: &[f32]) -> Vec<u8> {
+    let sampled_data = extract_samples(pixels);
     let median = sampled_data[sampled_data.len() / 2];
     let min_max = calc_zscale(&sampled_data);
     linear_scale(pixels, median, min_max.max)
@@ -145,7 +146,7 @@ mod tests {
         let mut rng = rand::rng();
         let pixels: Vec<f32> = (0..5760000).map(|_| rng.random::<f32>()).collect();
         let now = Instant::now();
-        let scaled = scaled_image(pixels);
+        let scaled = scaled_image(&pixels[..]);
         let elapsed = now.elapsed();
         tracing::debug!("Scaling elapsed time: {:?}", elapsed);
         assert_eq!(scaled.len(), 5760000);
