@@ -1,5 +1,5 @@
 use anyhow::{Error, Result, anyhow};
-use fitsio::{FitsFile, HeaderValue};
+use fitsio::{FitsFile, hdu::HduInfo::ImageInfo};
 use memfd::MemfdOptions;
 use std::{io::Write, os::fd::AsRawFd};
 
@@ -10,27 +10,39 @@ pub struct FitsImageData {
 }
 
 pub fn read_fits(image_data: &[u8]) -> Result<FitsImageData, Error> {
-    let opts = MemfdOptions::default().allow_sealing(false);
+    let opts = MemfdOptions::default()
+        .allow_sealing(true)
+        .close_on_exec(true);
     let mfd = opts.create("image-data")?;
+    mfd.as_file().set_len(image_data.len() as u64)?;
     mfd.as_file().write_all(image_data)?;
+    mfd.add_seals(&[
+        memfd::FileSeal::SealWrite,
+        memfd::FileSeal::SealShrink,
+        memfd::FileSeal::SealGrow,
+    ])?;
 
     let path = format!("/proc/self/fd/{}", mfd.as_file().as_raw_fd());
     let mut fits_f = FitsFile::open(path).expect("could not open file descriptor");
 
-    let hdus: Vec<_> = fits_f.iter().collect();
-    for hdu in hdus.iter() {
-        if let Ok(pixels) = hdu.read_image::<Vec<f32>>(&mut fits_f) {
-            let height = hdu
-                .read_key::<HeaderValue<i64>>(&mut fits_f, "ZNAXIS2")?
-                .value as u32;
-            let width = hdu
-                .read_key::<HeaderValue<i64>>(&mut fits_f, "ZNAXIS1")?
-                .value as u32;
-            return Ok(FitsImageData {
-                width,
-                height,
-                pixels,
-            });
+    let image_hdus: Vec<_> = fits_f
+        .iter()
+        .filter(|hdu| matches!(&hdu.info, fitsio::hdu::HduInfo::ImageInfo { .. }))
+        .collect();
+
+    for hdu in image_hdus {
+        if let ImageInfo { shape, .. } = &hdu.info
+            && shape.len() >= 2
+        {
+            let height = shape[0] as u32;
+            let width = shape[1] as u32;
+            if let Ok(pixels) = hdu.read_image::<Vec<f32>>(&mut fits_f) {
+                return Ok(FitsImageData {
+                    width,
+                    height,
+                    pixels,
+                });
+            }
         }
     }
 
