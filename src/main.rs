@@ -1,7 +1,7 @@
 use anyhow::Result;
 use axum::{
     Router,
-    extract::Path,
+    extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
     routing::get,
@@ -9,6 +9,7 @@ use axum::{
 use image::DynamicImage;
 use image::ImageBuffer;
 use serde_json::{Value, json};
+use std::sync::Arc;
 use std::time::Instant;
 use std::{env::var, io::Cursor};
 use tower_http::{self, trace::TraceLayer};
@@ -18,6 +19,10 @@ mod archive;
 mod fits;
 mod s3;
 mod scaling;
+
+struct AppState {
+    s3_service: s3::S3Service,
+}
 
 struct AppError(anyhow::Error);
 
@@ -44,8 +49,11 @@ async fn hello() -> String {
     "Welcome to the Thumbnail Service!".to_string()
 }
 
-async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json<Value>, AppError> {
-    let s3_service = s3::S3Service::new().await;
+async fn thumbnail(
+    State(state): State<Arc<AppState>>,
+    Path(frame_id): Path<u32>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, AppError> {
     let auth_header: Option<&str> = headers
         .get("Authorization")
         .map(|v| v.to_str().unwrap_or_default());
@@ -74,9 +82,9 @@ async fn thumbnail(Path(frame_id): Path<u32>, headers: HeaderMap) -> Result<Json
     let mut image_buf = Vec::new();
     let mut writer = Cursor::new(&mut image_buf);
     image.write_to(&mut writer, image::ImageFormat::Jpeg)?;
-    s3_service.upload_file(&image_buf, &key).await?;
+    state.s3_service.upload_file(&image_buf, &key).await?;
     // }
-    let url = s3_service.presigned_url(&key).await?;
+    let url = state.s3_service.presigned_url(&key).await?;
     Ok(Json(
         json!({"url": url, "download_s3_ms": dl_elapsed, "download_size_mb": dl_size, "open_fits_ms": open_elapsed, "scaling_ms": scaling_elapsed}),
     ))
@@ -106,9 +114,14 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    let shared_state = Arc::new(AppState {
+        s3_service: s3::S3Service::new().await,
+    });
+
     let app = Router::new()
         .route("/", get(hello))
         .route("/{frame_id}/", get(thumbnail))
+        .with_state(shared_state)
         .layer(TraceLayer::new_for_http());
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
