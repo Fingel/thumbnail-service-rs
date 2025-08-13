@@ -1,0 +1,2 @@
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-feature=+avx512f,+avx512dq,+avx512cd,+avx512bw,+avx512vl"]
