@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{env::var, io::Cursor};
+use tower::limit::ConcurrencyLimitLayer;
 use tower_http::{self, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -123,7 +124,8 @@ async fn main() {
         .route("/", get(hello))
         .route("/{frame_id}/", get(thumbnail))
         .with_state(shared_state)
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(ConcurrencyLimitLayer::new(2));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
